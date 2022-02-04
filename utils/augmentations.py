@@ -13,6 +13,7 @@ from utils.general import LOGGER, check_version, colorstr, resample_segments, se
 from utils.metrics import bbox_ioa
 
 
+
 class Albumentations:
     # YOLOv5 Albumentations class (optional, only used if package is installed)
     def __init__(self):
@@ -22,13 +23,22 @@ class Albumentations:
             check_version(A.__version__, '1.0.3', hard=True)  # version requirement
 
             self.transform = A.Compose([
-                A.Blur(p=0.01),
-                A.MedianBlur(p=0.01),
-                A.ToGray(p=0.01),
-                A.CLAHE(p=0.01),
-                A.RandomBrightnessContrast(p=0.0),
-                A.RandomGamma(p=0.0),
-                A.ImageCompression(quality_lower=75, p=0.0)],
+                # A.geometric.resize.Resize(640,640,interpolation=cv2.INTER_CUBIC),
+                # A.Blur(p=0.01),
+                # A.MedianBlur(p=0.01),
+                # A.ToGray(p=0.01),
+                # A.CLAHE(p=0.3),
+                A.ShiftScaleRotate(shift_limit=0, rotate_limit=180,
+                                  scale_limit=(-0.2, 0.5),
+                                  interpolation=cv2.INTER_NEAREST,
+                                  ),
+                # A.PiecewiseAffine(scale=(0.01, 0.05), p=0.2),
+                A.RandomBrightnessContrast(p=0.2),
+                A.RandomGamma(p=0.2),
+                A.Flip(p=0.5),
+
+                # A.ImageCompression(quality_lower=75, p=0.0)
+                ],
                 bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
 
             LOGGER.info(colorstr('albumentations: ') + ', '.join(f'{x}' for x in self.transform.transforms if x.p))
@@ -43,6 +53,18 @@ class Albumentations:
             im, labels = new['image'], np.array([[c, *b] for c, b in zip(new['class_labels'], new['bboxes'])])
         return im, labels
 
+class Albumetations2(Albumentations):
+    def __init__(self):
+        super(Albumetations2, self).__init__()
+        pass
+        try:
+            import albumentations as A
+            self.transform = A.Compose([
+                # A.geometric.resize.Resize(640, 640, interpolation=cv2.INTER_CUBIC),
+            ],
+                bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
+        except ImportError:  # package not installed, skip
+            pass
 
 def augment_hsv(im, hgain=0.5, sgain=0.5, vgain=0.5):
     # HSV color-space augmentation

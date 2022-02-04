@@ -22,11 +22,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import yaml
-from PIL import ExifTags, Image, ImageOps
+# from PIL import ExifTags, Image, ImageOps
 from torch.utils.data import DataLoader, Dataset, dataloader, distributed
 from tqdm import tqdm
-
-from utils.augmentations import Albumentations, augment_hsv, copy_paste, letterbox, mixup, random_perspective
+import rasterio
+from rasterio.plot import reshape_as_image, reshape_as_raster
+from utils.augmentations import Albumentations, Albumetations2, augment_hsv, copy_paste, letterbox, mixup, random_perspective
 from utils.general import (LOGGER, NUM_THREADS, check_dataset, check_requirements, check_yaml, clean_str,
                            segments2boxes, xyn2xy, xywh2xyxy, xywhn2xyxy, xyxy2xywhn)
 from utils.torch_utils import torch_distributed_zero_first
@@ -38,9 +39,9 @@ VID_FORMATS = ['mov', 'avi', 'mp4', 'mpg', 'mpeg', 'm4v', 'wmv', 'mkv']  # accep
 WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))  # DPP
 
 # Get orientation exif tag
-for orientation in ExifTags.TAGS.keys():
-    if ExifTags.TAGS[orientation] == 'Orientation':
-        break
+# for orientation in ExifTags.TAGS.keys():
+#     if ExifTags.TAGS[orientation] == 'Orientation':
+#         break
 
 
 def get_hash(paths):
@@ -54,17 +55,17 @@ def get_hash(paths):
 def exif_size(img):
     # Returns exif-corrected PIL size
     s = img.size  # (width, height)
-    try:
-        rotation = dict(img._getexif().items())[orientation]
-        if rotation == 6:  # rotation 270
-            s = (s[1], s[0])
-        elif rotation == 8:  # rotation 90
-            s = (s[1], s[0])
-    except:
-        pass
+    # try:
+    #     rotation = dict(img._getexif().items())[orientation]
+    #     if rotation == 6:  # rotation 270
+    #         s = (s[1], s[0])
+    #     elif rotation == 8:  # rotation 90
+    #         s = (s[1], s[0])
+    # except:
+    #     pass
 
     return s
-
+orientation = 1
 
 def exif_transpose(image):
     """
@@ -76,19 +77,19 @@ def exif_transpose(image):
     """
     exif = image.getexif()
     orientation = exif.get(0x0112, 1)  # default 1
-    if orientation > 1:
-        method = {2: Image.FLIP_LEFT_RIGHT,
-                  3: Image.ROTATE_180,
-                  4: Image.FLIP_TOP_BOTTOM,
-                  5: Image.TRANSPOSE,
-                  6: Image.ROTATE_270,
-                  7: Image.TRANSVERSE,
-                  8: Image.ROTATE_90,
-                  }.get(orientation)
-        if method is not None:
-            image = image.transpose(method)
-            del exif[0x0112]
-            image.info["exif"] = exif.tobytes()
+    # if orientation > 1:
+    #     method = {2: Image.FLIP_LEFT_RIGHT,
+    #               3: Image.ROTATE_180,
+    #               4: Image.FLIP_TOP_BOTTOM,
+    #               5: Image.TRANSPOSE,
+    #               6: Image.ROTATE_270,
+    #               7: Image.TRANSVERSE,
+    #               8: Image.ROTATE_90,
+    #               }.get(orientation)
+    #     if method is not None:
+    #         image = image.transpose(method)
+    #         del exif[0x0112]
+    #         image.info["exif"] = exif.tobytes()
     return image
 
 
@@ -216,7 +217,19 @@ class LoadImages:
         else:
             # Read image
             self.count += 1
-            img0 = cv2.imread(path)  # BGR
+            with rasterio.open(path) as im_o:
+                im = im_o.read()
+                im[0] = im[0] / 40
+                max_its = np.max(im[1])
+                if max_its > 1.0:
+                    if max_its < 255:
+                        im[1] = im[1] / 255
+                    else:
+                        im[1] = im[1] / max_its
+                im[2] = im[2] / 2.0
+                im[im > 1] = 1
+                im[im < 0] = 0
+                img0 = reshape_as_image(im*255)  # BGR
             assert img0 is not None, f'Image Not Found {path}'
             s = f'image {self.count}/{self.nf} {path}: '
 
@@ -224,7 +237,7 @@ class LoadImages:
         img = letterbox(img0, self.img_size, stride=self.stride, auto=self.auto)[0]
 
         # Convert
-        img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
+        # img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
         img = np.ascontiguousarray(img)
 
         return path, img, img0, self.cap, s
@@ -596,19 +609,19 @@ class LoadImagesAndLabels(Dataset):
             nl = len(labels)  # update after albumentations
 
             # HSV color-space
-            augment_hsv(img, hgain=hyp['hsv_h'], sgain=hyp['hsv_s'], vgain=hyp['hsv_v'])
+            # augment_hsv(img, hgain=hyp['hsv_h'], sgain=hyp['hsv_s'], vgain=hyp['hsv_v'])
 
             # Flip up-down
-            if random.random() < hyp['flipud']:
-                img = np.flipud(img)
-                if nl:
-                    labels[:, 2] = 1 - labels[:, 2]
-
-            # Flip left-right
-            if random.random() < hyp['fliplr']:
-                img = np.fliplr(img)
-                if nl:
-                    labels[:, 1] = 1 - labels[:, 1]
+            # if random.random() < hyp['flipud']:
+            #     img = np.flipud(img)
+            #     if nl:
+            #         labels[:, 2] = 1 - labels[:, 2]
+            #
+            # # Flip left-right
+            # if random.random() < hyp['fliplr']:
+            #     img = np.fliplr(img)
+            #     if nl:
+            #         labels[:, 1] = 1 - labels[:, 1]
 
             # Cutouts
             # labels = cutout(img, labels, p=0.5)
@@ -668,13 +681,26 @@ def load_image(self, i):
             im = np.load(npy)
         else:  # read image
             path = self.img_files[i]
-            im = cv2.imread(path)  # BGR
+            # im = cv2.imread(path)  # BGR
+            with rasterio.open(path) as im_o:
+                im = im_o.read()
+                im[0] = im[0] / 40
+                max_its = np.max(im[1])
+                if max_its > 1.0:
+                    if max_its < 255:
+                        im[1] = im[1] / 255
+                    else:
+                        im[1] = im[1] / max_its
+                im[2] = im[2] / 2.0
+                im[im > 1] = 1
+                im[im < 0] = 0
+                im = reshape_as_image(im*255)
             assert im is not None, f'Image Not Found {path}'
         h0, w0 = im.shape[:2]  # orig hw
-        r = self.img_size / max(h0, w0)  # ratio
-        if r != 1:  # if sizes are not equal
-            im = cv2.resize(im, (int(w0 * r), int(h0 * r)),
-                            interpolation=cv2.INTER_AREA if r < 1 and not self.augment else cv2.INTER_LINEAR)
+        # r = self.img_size / max(h0, w0)  # ratio
+        # if r != 1:  # if sizes are not equal
+        #     im = cv2.resize(im, (int(w0 * r), int(h0 * r)),
+        #                     interpolation=cv2.INTER_AREA if r < 1 and not self.augment else cv2.INTER_LINEAR)
         return im, (h0, w0), im.shape[:2]  # im, hw_original, hw_resized
     else:
         return self.imgs[i], self.img_hw0[i], self.img_hw[i]  # im, hw_original, hw_resized
@@ -890,17 +916,31 @@ def verify_image_label(args):
     nm, nf, ne, nc, msg, segments = 0, 0, 0, 0, '', []  # number (missing, found, empty, corrupt), message, segments
     try:
         # verify images
-        im = Image.open(im_file)
-        im.verify()  # PIL verify
-        shape = exif_size(im)  # image size
-        assert (shape[0] > 9) & (shape[1] > 9), f'image size {shape} <10 pixels'
-        assert im.format.lower() in IMG_FORMATS, f'invalid image format {im.format}'
-        if im.format.lower() in ('jpg', 'jpeg'):
-            with open(im_file, 'rb') as f:
-                f.seek(-2, 2)
-                if f.read() != b'\xff\xd9':  # corrupt JPEG
-                    ImageOps.exif_transpose(Image.open(im_file)).save(im_file, 'JPEG', subsampling=0, quality=100)
-                    msg = f'{prefix}WARNING: {im_file}: corrupt JPEG restored and saved'
+        with rasterio.open(im_file) as f:
+            im = f.read()
+            im[0] = im[0] / 40
+            max_its = np.max(im[1])
+            if max_its > 1.0:
+                if max_its < 255:
+                    im[1] = im[1] / 255
+                else:
+                    im[1] = im[1] / max_its
+            im[2] = im[2] / 2.0
+            im[im > 1] = 1
+            im[im < 0] = 0
+            im = reshape_as_image(im*255)
+        # im.verify()  # PIL verify
+        shape = (im.shape[0], im.shape[1])  # image size
+
+        # assert (shape[0] > 9) & (shape[1] > 9), f'image size {shape} <10 pixels'
+        # assert im.format.lower() in IMG_FORMATS, f'invalid image format {im.format}'
+
+        # if im.format.lower() in ('jpg', 'jpeg'):
+        #     with open(im_file, 'rb') as f:
+        #         f.seek(-2, 2)
+        #         if f.read() != b'\xff\xd9':  # corrupt JPEG
+        #             ImageOps.exif_transpose(Image.open(im_file)).save(im_file, 'JPEG', subsampling=0, quality=100)
+        #             msg = f'{prefix}WARNING: {im_file}: corrupt JPEG restored and saved'
 
         # verify labels
         if os.path.isfile(lb_file):
@@ -965,11 +1005,23 @@ def dataset_stats(path='coco128.yaml', autodownload=False, verbose=False, profil
         # HUB ops for 1 image 'f': resize and save at reduced quality in /dataset-hub for web/app viewing
         f_new = im_dir / Path(f).name  # dataset-hub image filename
         try:  # use PIL
-            im = Image.open(f)
-            r = max_dim / max(im.height, im.width)  # ratio
-            if r < 1.0:  # image too large
-                im = im.resize((int(im.width * r), int(im.height * r)))
-            im.save(f_new, 'JPEG', quality=75, optimize=True)  # save
+            with rasterio.open(f) as im_o:
+                im = im_o.read()
+                im[0] = im[0] / 40
+                max_its = np.max(im[1])
+                if max_its > 1.0:
+                    if max_its < 255:
+                        im[1] = im[1] / 255
+                    else:
+                        im[1] = im[1] / max_its
+                im[2] = im[2] / 2.0
+                im[im > 1] = 1
+                im[im < 0] = 0
+                meta = im_o.meta
+            # r = max_dim / max(im.height, im.width)  # ratio
+            # if r < 1.0:  # image too large
+            #     im = im.resize((int(im.width * r), int(im.height * r)))
+            cv2.imwrite(str(f_new), reshape_as_image(im))
         except Exception as e:  # use OpenCV
             print(f'WARNING: HUB ops PIL failure {f}: {e}')
             im = cv2.imread(f)

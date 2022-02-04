@@ -246,7 +246,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
             # Anchors
             if not opt.noautoanchor:
                 check_anchors(dataset, model=model, thr=hyp['anchor_t'], imgsz=imgsz)
-            model.half().float()  # pre-reduce anchor precision
+            model.half().float()  # pre-reduce anchor precision #TODO
 
         callbacks.run('on_pretrain_routine_end')
 
@@ -303,7 +303,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
         optimizer.zero_grad()
         for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
             ni = i + nb * epoch  # number integrated batches (since train start)
-            imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
+            imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0 #TODO
 
             # Warmup
             if ni <= nw:
@@ -450,7 +450,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
 
 def parse_opt(known=False):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', type=str, default=ROOT / 'yolov5s.pt', help='initial weights path')
+    parser.add_argument('--weights', type=str, default=ROOT / 'yolov5l.pt', help='initial weights path')
     parser.add_argument('--cfg', type=str, default='', help='model.yaml path')
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='dataset.yaml path')
     parser.add_argument('--hyp', type=str, default=ROOT / 'data/hyps/hyp.scratch.yaml', help='hyperparameters path')
@@ -469,13 +469,13 @@ def parse_opt(known=False):
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--multi-scale', action='store_true', help='vary img-size +/- 50%%')
     parser.add_argument('--single-cls', action='store_true', help='train multi-class data as single-class')
-    parser.add_argument('--optimizer', type=str, choices=['SGD', 'Adam', 'AdamW'], default='SGD', help='optimizer')
+    parser.add_argument('--optimizer', type=str, choices=['SGD', 'Adam', 'AdamW'], default='Adam', help='optimizer')
     parser.add_argument('--sync-bn', action='store_true', help='use SyncBatchNorm, only available in DDP mode')
     parser.add_argument('--workers', type=int, default=8, help='max dataloader workers (per RANK in DDP mode)')
     parser.add_argument('--project', default=ROOT / 'runs/train', help='save to project/name')
     parser.add_argument('--name', default='exp', help='save to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
-    parser.add_argument('--quad', action='store_true', help='quad dataloader')
+    parser.add_argument('--quad', action='store_true', help='quad dataloader', default=False)
     parser.add_argument('--linear-lr', action='store_true', help='linear LR')
     parser.add_argument('--label-smoothing', type=float, default=0.0, help='Label smoothing epsilon')
     parser.add_argument('--patience', type=int, default=100, help='EarlyStopping patience (epochs without improvement)')
@@ -538,7 +538,7 @@ def main(opt, callbacks=Callbacks()):
     # Evolve hyperparameters (optional)
     else:
         # Hyperparameter evolution metadata (mutation scale 0-1, lower_limit, upper_limit)
-        meta = {'lr0': (1, 1e-5, 1e-1),  # initial learning rate (SGD=1E-2, Adam=1E-3)
+        meta = {'lr0': (1, 1e-6, 1e-2),  # initial learning rate (SGD=1E-2, Adam=1E-3)
                 'lrf': (1, 0.01, 1.0),  # final OneCycleLR learning rate (lr0 * lrf)
                 'momentum': (0.3, 0.6, 0.98),  # SGD momentum/Adam beta1
                 'weight_decay': (1, 0.0, 0.001),  # optimizer weight decay

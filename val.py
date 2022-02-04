@@ -127,7 +127,7 @@ def run(data,
         device, pt, jit, engine = next(model.parameters()).device, True, False, False  # get model device, PyTorch model
 
         half &= device.type != 'cpu'  # half precision only supported on CUDA
-        model.half() if half else model.float()
+        model.half() if half else model.float() #TODO
     else:  # called directly
         device = select_device(device, batch_size=batch_size)
 
@@ -182,7 +182,7 @@ def run(data,
         if pt or jit or engine:
             im = im.to(device, non_blocking=True)
             targets = targets.to(device)
-        im = im.half() if half else im.float()  # uint8 to fp16/32
+        im = im.half() if half else im.float()  # uint8 to fp16/32 #TODO
         im /= 255  # 0 - 255 to 0.0 - 1.0
         nb, _, height, width = im.shape  # batch size, channels, height, width
         t2 = time_sync()
@@ -200,7 +200,7 @@ def run(data,
         targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
         lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
         t3 = time_sync()
-        out = non_max_suppression(out, conf_thres, iou_thres, labels=lb, multi_label=True, agnostic=single_cls)
+        out = non_max_suppression(out, conf_thres, iou_thres, labels=lb, multi_label=True, agnostic=single_cls, max_det=1000)
         dt[2] += time_sync() - t3
 
         # Metrics
@@ -319,10 +319,10 @@ def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='dataset.yaml path')
     parser.add_argument('--weights', nargs='+', type=str, default=ROOT / 'yolov5s.pt', help='model.pt path(s)')
-    parser.add_argument('--batch-size', type=int, default=32, help='batch size')
+    parser.add_argument('--batch-size', type=int, default=1, help='batch size')
     parser.add_argument('--imgsz', '--img', '--img-size', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.001, help='confidence threshold')
-    parser.add_argument('--iou-thres', type=float, default=0.6, help='NMS IoU threshold')
+    parser.add_argument('--iou-thres', type=float, default=0.5, help='NMS IoU threshold')
     parser.add_argument('--task', default='val', help='train, val, test, speed or study')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--workers', type=int, default=8, help='max dataloader workers (per RANK in DDP mode)')
