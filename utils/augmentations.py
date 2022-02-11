@@ -33,8 +33,8 @@ class Albumentations:
                                   interpolation=cv2.INTER_NEAREST,
                                   ),
                 # A.PiecewiseAffine(scale=(0.01, 0.05), p=0.2),
-                A.RandomBrightnessContrast(p=0.2),
-                A.RandomGamma(p=0.2),
+                # A.RandomBrightnessContrast(p=0.2),
+                # A.RandomGamma(p=0.2),
                 A.Flip(p=0.5),
 
                 # A.ImageCompression(quality_lower=75, p=0.0)
