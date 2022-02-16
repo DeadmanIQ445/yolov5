@@ -1,26 +1,25 @@
-# %%
 from sklearn.model_selection import train_test_split
-import geopandas as gpd
 from utils import *
 import fiona
 import rasterio.mask
-# %%
 import warnings
+import os
+import geopandas as gpd
+import pandas as pd
+import shutil
 
 warnings.filterwarnings("ignore")
-# %%
-data_path = '/media/deadman445/disk/05/train'
-patch_size = 400
-samples_dir = f'/media/deadman445/disk/PycharmProjects/data/05/summer_treecanopy_{patch_size}'
 
+data_path = '/media/deadman445/disk/treecanopy_train_02/'
+data_path_train = os.path.join(data_path,'train')
+data_path_test = os.path.join(data_path,'test')
+patch_size = 400
+samples_dir = os.path.join(data_path,f'summer_treecanopy_{patch_size}')
 
 
 use_AOI = True
 
 
-# %% md
-# Processing for training
-# %%
 def create_train_ds(input_dir, resulting_ds_dir):
     """
     Preparing data for training by splitting big input images into tiles
@@ -30,7 +29,7 @@ def create_train_ds(input_dir, resulting_ds_dir):
             resulting_ds_dir: directory for resulting splitted images
     """
     for p in tqdm(os.listdir(input_dir)):
-        path = os.path.join(data_path, p)
+        path = os.path.join(input_dir, p)
         print(path)
         for file in os.listdir(path):
             if file.endswith(".shp"):
@@ -61,7 +60,7 @@ def create_train_ds(input_dir, resulting_ds_dir):
         os.remove(f"{p}_before_proc.csv")
 
     final_df = None
-    for csv in os.listdir(samples_dir):
+    for csv in os.listdir(resulting_ds_dir):
         if csv.endswith(".csv"):
             processed = pd.read_csv(os.path.join(resulting_ds_dir, csv)).dropna().reset_index().drop(['index'], axis=1)
 
@@ -72,16 +71,60 @@ def create_train_ds(input_dir, resulting_ds_dir):
     final_df.to_csv(os.path.join(resulting_ds_dir, 'final_df.csv'))
 
 
-create_train_ds(data_path, samples_dir)
-# %%
-# perfroming train/test split by images
+create_train_ds(data_path_train, samples_dir)
 
 train_val_test = pd.read_csv(os.path.join(samples_dir, 'final_df.csv'))
 
 train_val_test['label'] = 'Tree'
 
-train_val_paths, test_paths = train_test_split(train_val_test['image_path'].unique(), test_size=0.15, random_state=42)
-train_val = train_val_test[train_val_test['image_path'].isin(train_val_paths)]
-test = train_val_test[train_val_test['image_path'].isin(test_paths)]
-train_val.to_csv(os.path.join(samples_dir, "train_val.csv"))
-test.to_csv(os.path.join(samples_dir, 'test.csv'))
+train_paths, val_paths = train_test_split(train_val_test['image_path'].unique(), test_size=0.15, random_state=42)
+train = train_val_test[train_val_test['image_path'].isin(train_paths)]
+val = train_val_test[train_val_test['image_path'].isin(val_paths)]
+train.to_csv(os.path.join(samples_dir, "train.csv"))
+val.to_csv(os.path.join(samples_dir, 'val.csv'))
+
+samples_dir = os.path.join(data_path,f'test_{patch_size}')
+create_train_ds(data_path_test, samples_dir)
+
+
+
+yolo_base = os.path.join(os.path.dirname(samples_dir),f'coco128')
+for train_val_label in ["train2017", "val2017", "test2017"]:
+    samples_dir = os.path.join(data_path, f'summer_treecanopy_{patch_size}')
+    if 'val' in train_val_label:
+        csv = 'val.csv'
+    elif 'train' in train_val_label:
+        csv = 'train.csv'
+
+    elif 'test' in train_val_label:
+        csv = 'final_df.csv'
+        samples_dir = os.path.join(data_path, f'test_{patch_size}')
+
+    df_path = os.path.join(samples_dir, csv)
+
+
+    a = gpd.read_file(df_path)
+
+    images_base = os.path.join(yolo_base,'images')
+    labels_base = os.path.join(yolo_base,'labels')
+    os.makedirs(yolo_base, exist_ok=True)
+    os.makedirs(images_base, exist_ok=True)
+    os.makedirs(labels_base, exist_ok=True)
+
+    for name, group in a.groupby(['image_path']):
+        base_name = os.path.splitext(os.path.basename(name))[0]
+        group['xmin'] = group['xmin'].astype(float)
+        group['xmax'] = group['xmax'].astype(float)
+        group['ymin'] = group['ymin'].astype(float)
+        group['ymax'] = group['ymax'].astype(float)
+        x = (group['xmin'] + group['xmax'])/(2.0*patch_size)
+        y = (group['ymin'] + group['ymax'])/(2.0*patch_size)
+        w = (group['xmax'] - group['xmin'])/patch_size
+        h = (group['ymax'] - group['ymin'])/patch_size
+        res = pd.concat([x*0,x,y,w,h], axis=1)
+        labels_train = os.path.join(labels_base,train_val_label)
+        os.makedirs(labels_train, exist_ok=True)
+        images_train = os.path.join(images_base,train_val_label)
+        os.makedirs(images_train, exist_ok=True)
+        res.to_csv(f'{os.path.join(labels_train, base_name)}.txt', header=None, index=None, sep=' ', mode='w+')
+        shutil.copy2(os.path.join(samples_dir, name),os.path.join(images_train, name))
