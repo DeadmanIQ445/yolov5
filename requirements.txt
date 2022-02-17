@@ -19,7 +19,9 @@ tensorboard>=2.4.1
 # Plotting ------------------------------------
 pandas>=1.1.4
 seaborn>=0.11.0
-
+rasterio
+geopandas
+scikit-learn
 # Export --------------------------------------
 # coremltools>=4.1  # CoreML export
 # onnx>=1.9.0  # ONNX export
