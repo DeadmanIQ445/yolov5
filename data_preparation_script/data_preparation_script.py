@@ -14,8 +14,10 @@ data_path = '/media/deadman445/disk/treecanopy_train_02/'
 data_path_train = os.path.join(data_path,'train')
 data_path_test = os.path.join(data_path,'test')
 patch_size = 400
-samples_dir = os.path.join(data_path,f'summer_treecanopy_{patch_size}')
-
+train_samples_dir = os.path.join(data_path,f'summer_treecanopy_{patch_size}')
+test_samples_dir = os.path.join(data_path,f'test_{patch_size}')
+samples_dir = train_samples_dir
+yolo_base = os.path.join(os.path.dirname(samples_dir),f'coco128')
 
 use_AOI = True
 
@@ -83,14 +85,13 @@ val = train_val_test[train_val_test['image_path'].isin(val_paths)]
 train.to_csv(os.path.join(samples_dir, "train.csv"))
 val.to_csv(os.path.join(samples_dir, 'val.csv'))
 
-samples_dir = os.path.join(data_path,f'test_{patch_size}')
-create_train_ds(data_path_test, samples_dir)
+create_train_ds(data_path_test, test_samples_dir)
 
 
 
-yolo_base = os.path.join(os.path.dirname(samples_dir),f'coco128')
-for train_val_label in ["train2017", "val2017", "test2017"]:
-    samples_dir = os.path.join(data_path, f'summer_treecanopy_{patch_size}')
+
+for train_val_label in ["train2017", "val2017","test2017"]:
+    samples_dir = train_samples_dir
     if 'val' in train_val_label:
         csv = 'val.csv'
     elif 'train' in train_val_label:
@@ -98,7 +99,7 @@ for train_val_label in ["train2017", "val2017", "test2017"]:
 
     elif 'test' in train_val_label:
         csv = 'final_df.csv'
-        samples_dir = os.path.join(data_path, f'test_{patch_size}')
+        samples_dir = test_samples_dir
 
     df_path = os.path.join(samples_dir, csv)
 
