@@ -22,6 +22,7 @@ seaborn>=0.11.0
 rasterio
 geopandas
 scikit-learn
+slidingwindow
 # Export --------------------------------------
 # coremltools>=4.1  # CoreML export
 # onnx>=1.9.0  # ONNX export
