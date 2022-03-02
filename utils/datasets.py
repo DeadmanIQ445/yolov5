@@ -687,11 +687,11 @@ def load_image(self, i):
                 im[0] = im[0] / 40
                 max_its = np.max(im[1])
                 if max_its > 1.0:
-                    if max_its < 255:
-                        im[1] = im[1] / 255
-                    else:
-                        im[1] = im[1] / max_its
-                im[2] = im[2] / 2.0
+                    # if max_its < 255:
+                    #     im[1] = im[1] / 255
+                    # else:
+                    im[1] = im[1] / max_its
+                im[2] = im[2] / 1.0
                 im[im > 1] = 1
                 im[im < 0] = 0
                 im = reshape_as_image(im*255)

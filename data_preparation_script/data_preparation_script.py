@@ -10,7 +10,7 @@ import shutil
 
 warnings.filterwarnings("ignore")
 
-data_path = '/media/deadman445/disk/treecanopy_train_02/'
+data_path = '/media/deadman445/disk/winter/05/'
 data_path_train = os.path.join(data_path,'train')
 data_path_test = os.path.join(data_path,'test')
 patch_size = 400
@@ -43,7 +43,7 @@ def create_train_ds(input_dir, resulting_ds_dir):
                     out_image = rast.read()
                     if use_AOI:
                         path_AOI = os.path.join(os.path.join(os.path.split(input_dir)[0], 'AOI'), os.path.split(path)[1])
-                        path_AOI = os.path.join(path_AOI, os.path.split(path)[1].split('_gpx_GT')[0] + "_gpx_AOI.shp")
+                        # path_AOI = os.path.join(path_AOI, os.path.split(path)[1].split('_gpx_GT')[0] + "_gpx_AOI.shp")
                         with fiona.open(path_AOI, "r") as shapefile:
                             shapes = [feature["geometry"] for feature in shapefile]
                             out_image, out_transform = rasterio.mask.mask(rast, shapes)

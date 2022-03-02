@@ -33,7 +33,7 @@ class Albumentations:
                 #                   scale_limit=(-0.2, 0.5),
                 #                   interpolation=cv2.INTER_NEAREST,
                 #                   ),
-                # A.PiecewiseAffine(scale=(0.01, 0.05), p=0.2),
+                A.PiecewiseAffine(scale=(0.01, 0.05), p=0.2),
                 # A.RandomBrightnessContrast(p=0.2),
                 # A.RandomGamma(p=0.2),
                 A.Flip(p=0.5),
