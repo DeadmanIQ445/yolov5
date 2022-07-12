@@ -27,7 +27,8 @@ from torch.utils.data import DataLoader, Dataset, dataloader, distributed
 from tqdm import tqdm
 import rasterio
 from rasterio.plot import reshape_as_image, reshape_as_raster
-from utils.augmentations import Albumentations, Albumetations2, augment_hsv, copy_paste, letterbox, mixup, random_perspective
+from utils.augmentations import Albumentations, Albumetations2, augment_hsv, copy_paste, letterbox, mixup, \
+    random_perspective
 from utils.general import (LOGGER, NUM_THREADS, check_dataset, check_requirements, check_yaml, clean_str,
                            segments2boxes, xyn2xy, xywh2xyxy, xywhn2xyxy, xyxy2xywhn)
 from utils.torch_utils import torch_distributed_zero_first
@@ -37,6 +38,7 @@ HELP_URL = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
 IMG_FORMATS = ['bmp', 'jpg', 'jpeg', 'png', 'tif', 'tiff', 'dng', 'webp', 'mpo']  # acceptable image suffixes
 VID_FORMATS = ['mov', 'avi', 'mp4', 'mpg', 'mpeg', 'm4v', 'wmv', 'mkv']  # acceptable video suffixes
 WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))  # DPP
+
 
 # Get orientation exif tag
 # for orientation in ExifTags.TAGS.keys():
@@ -65,7 +67,10 @@ def exif_size(img):
     #     pass
 
     return s
+
+
 orientation = 1
+
 
 def exif_transpose(image):
     """
@@ -219,17 +224,17 @@ class LoadImages:
             self.count += 1
             with rasterio.open(path) as im_o:
                 im = im_o.read()
-                im[0] = im[0] / 40
-                max_its = np.max(im[1])
-                if max_its > 1.0:
-                    if max_its < 255:
-                        im[1] = im[1] / 255
-                    else:
-                        im[1] = im[1] / max_its
-                im[2] = im[2] / 2.0
-                im[im > 1] = 1
-                im[im < 0] = 0
-                img0 = reshape_as_image(im*255)  # BGR
+                #                im[0] = im[0] / 40
+                #               max_its = np.max(im[1])
+                #              if max_its > 1.0:
+                #                 if max_its < 255:
+                #                    im[1] = im[1] / 255
+                #               else:
+                #                  im[1] = im[1] / max_its
+                #         im[2] = im[2] / 2.0
+                #        im[im > 1] = 1
+                #       im[im < 0] = 0
+                img0 = reshape_as_image(im)  # BGR
             assert img0 is not None, f'Image Not Found {path}'
             s = f'image {self.count}/{self.nf} {path}: '
 
@@ -684,17 +689,17 @@ def load_image(self, i):
             # im = cv2.imread(path)  # BGR
             with rasterio.open(path) as im_o:
                 im = im_o.read()
-                im[0] = im[0] / 40
-                max_its = np.max(im[1])
-                if max_its > 1.0:
-                    if max_its < 255:
-                        im[1] = im[1] / 255
-                    else:
-                        im[1] = im[1] / max_its
-                im[2] = im[2] / 2.0
-                im[im > 1] = 1
-                im[im < 0] = 0
-                im = reshape_as_image(im*255)
+                # im[0] = im[0] / 40
+                # max_its = np.max(im[1])
+                # if max_its > 1.0:
+                #   if max_its < 255:
+                #       im[1] = im[1] / 255
+                #   else:
+                #        im[1] = im[1] / max_its
+                # im[2] = im[2] / 2.0
+                # im[im > 1] = 1
+                # im[im < 0] = 0
+                im = reshape_as_image(im)
             assert im is not None, f'Image Not Found {path}'
         h0, w0 = im.shape[:2]  # orig hw
         # r = self.img_size / max(h0, w0)  # ratio
@@ -918,17 +923,17 @@ def verify_image_label(args):
         # verify images
         with rasterio.open(im_file) as f:
             im = f.read()
-            im[0] = im[0] / 40
-            max_its = np.max(im[1])
-            if max_its > 1.0:
-                if max_its < 255:
-                    im[1] = im[1] / 255
-                else:
-                    im[1] = im[1] / max_its
-            im[2] = im[2] / 2.0
-            im[im > 1] = 1
-            im[im < 0] = 0
-            im = reshape_as_image(im*255)
+            # im[0] = im[0] / 40
+            # max_its = np.max(im[1])
+            # if max_its > 1.0:
+            #    if max_its < 255:
+            #        im[1] = im[1] / 255
+            #    else:
+            #        im[1] = im[1] / max_its
+            # im[2] = im[2] / 2.0
+            # im[im > 1] = 1
+            # im[im < 0] = 0
+            im = reshape_as_image(im)
         # im.verify()  # PIL verify
         shape = (im.shape[0], im.shape[1])  # image size
 
@@ -1007,16 +1012,16 @@ def dataset_stats(path='coco128.yaml', autodownload=False, verbose=False, profil
         try:  # use PIL
             with rasterio.open(f) as im_o:
                 im = im_o.read()
-                im[0] = im[0] / 40
-                max_its = np.max(im[1])
-                if max_its > 1.0:
-                    if max_its < 255:
-                        im[1] = im[1] / 255
-                    else:
-                        im[1] = im[1] / max_its
-                im[2] = im[2] / 2.0
-                im[im > 1] = 1
-                im[im < 0] = 0
+                # im[0] = im[0] / 40
+                # max_its = np.max(im[1])
+                # if max_its > 1.0:
+                #    if max_its < 255:
+                #        im[1] = im[1] / 255
+                #    else:
+                #        im[1] = im[1] / max_its
+                # im[2] = im[2] / 2.0
+                # im[im > 1] = 1
+                # im[im < 0] = 0
                 meta = im_o.meta
             # r = max_dim / max(im.height, im.width)  # ratio
             # if r < 1.0:  # image too large
